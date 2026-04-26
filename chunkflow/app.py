@@ -11,8 +11,9 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from chunkflow.chunking import parse_document
+from chunkflow.chunking import configured_parser_priority, parse_document
 from chunkflow.docling_parser import is_docling_available
+from chunkflow.mineru_parser import is_mineru_available
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("chunkflow.app")
@@ -34,10 +35,18 @@ async def index():
 
 @app.get("/api/status")
 async def status():
+    priority = configured_parser_priority()
+    parser = "pypdf"
+    if "mineru" in priority and is_mineru_available():
+        parser = "mineru"
+    elif "docling" in priority and is_docling_available():
+        parser = "docling"
     return {
         "service": "ChunkFlow",
+        "mineru_available": is_mineru_available(),
         "docling_available": is_docling_available(),
-        "parser": "docling" if is_docling_available() else "pypdf",
+        "parser": parser,
+        "parser_priority": priority,
     }
 
 
@@ -75,7 +84,6 @@ async def parse_file(
         result = document.to_dict()
         result["filename"] = file.filename
         result["file_size_bytes"] = len(content)
-        result["parser_used"] = "docling" if is_docling_available() else "pypdf"
 
         return JSONResponse(content=result)
 

@@ -24,6 +24,7 @@ from chunkflow.schema import (
 )
 from chunkflow.tokenizer import simple_tokenize, estimate_tokens
 from chunkflow.docling_parser import is_docling_available, parse_pdf_with_docling
+from chunkflow.mineru_parser import is_mineru_available, parse_pdf_with_mineru
 from chunkflow.pdf_parser import (
     extract_metadata_from_page_text,
     PageMetadata,
@@ -33,6 +34,8 @@ from chunkflow.pdf_parser import (
 )
 
 logger = logging.getLogger("chunkflow.chunking")
+
+DEFAULT_PARSER_PRIORITY = ("mineru", "docling", "pypdf")
 
 _PARAGRAPH_SEP_RE = re.compile(r"\n\s*\n")
 
@@ -570,6 +573,46 @@ def _sliding_window_chunks(
 # Main entry point
 # ---------------------------------------------------------------------------
 
+def configured_parser_priority() -> list[str]:
+    raw = os.getenv("CHUNKFLOW_PARSER_PRIORITY", ",".join(DEFAULT_PARSER_PRIORITY))
+    priority = [part.strip().lower() for part in raw.split(",") if part.strip()]
+    return [p for p in priority if p in DEFAULT_PARSER_PRIORITY] or list(DEFAULT_PARSER_PRIORITY)
+
+
+def _chunks_from_structured_parser(
+    parsed_chunks: list[dict],
+    *,
+    document_id: str,
+    source_type: str,
+    effective_max: int,
+    min_chunk_tokens: int,
+) -> list[Chunk]:
+    chunks = []
+    for i, dc in enumerate(parsed_chunks):
+        pn = dc.get("page_number")
+        page_number = pn if pn is not None else 1
+        key = chunk_key(document_id, page_number)
+        cid = chunk_id_from_components(document_id, source_type, page_number, i)
+        chunks.append(
+            Chunk(
+                chunk_id=cid,
+                chunk_key=key,
+                document_id=document_id,
+                source_type=source_type,
+                page_number=page_number,
+                chunk_index=i,
+                text=clean_chunk_text(dc["raw_text"]),
+                chapter=dc.get("chapter"),
+                section=dc.get("section"),
+                domain_hint=dc.get("domain_hint"),
+                headings=dc.get("headings", []),
+                content_type=dc.get("content_type"),
+            )
+        )
+    chunks = _repair_broken_boundaries(chunks, effective_max)
+    chunks = _merge_structural_continuations(chunks, effective_max)
+    return _merge_small_chunks(chunks, min_chunk_tokens, effective_max)
+
 def parse_document(
     file_path: str,
     max_tokens: int = 400,
@@ -599,8 +642,39 @@ def parse_document(
 
     effective_max = max(max_tokens, chunk_size_tokens)
 
+    parser_priority = configured_parser_priority()
+    attempted: list[str] = []
+
+    # --- MinerU path ---
+    if "mineru" in parser_priority and is_mineru_available():
+        attempted.append("mineru")
+        logger.info("Using MinerU for high-fidelity parsing")
+        try:
+            mineru_chunks = parse_pdf_with_mineru(path, max_tokens=max_tokens)
+        except Exception as e:
+            logger.warning("MinerU parsing failed, falling back: %s", e)
+            mineru_chunks = []
+
+        if mineru_chunks:
+            chunks = _chunks_from_structured_parser(
+                mineru_chunks,
+                document_id=document_id,
+                source_type=source_type,
+                effective_max=effective_max,
+                min_chunk_tokens=min_chunk_tokens,
+            )
+            return Document(
+                document_id=document_id,
+                source_path=path,
+                chunks=chunks,
+                parser_used="mineru",
+                parser_fallback_chain=attempted,
+            )
+        logger.info("MinerU produced no chunks, falling back")
+
     # --- Docling path ---
-    if is_docling_available():
+    if "docling" in parser_priority and is_docling_available():
+        attempted.append("docling")
         logger.info("Using Docling for structure-aware parsing")
         try:
             docling_chunks = parse_pdf_with_docling(path, max_tokens=max_tokens)
@@ -609,41 +683,24 @@ def parse_document(
             docling_chunks = []
 
         if docling_chunks:
-            chunks = []
-            for i, dc in enumerate(docling_chunks):
-                pn = dc.get("page_number")
-                page_number = pn if pn is not None else 1
-                key = chunk_key(document_id, page_number)
-                cid = chunk_id_from_components(document_id, source_type, page_number, i)
-                chunks.append(
-                    Chunk(
-                        chunk_id=cid,
-                        chunk_key=key,
-                        document_id=document_id,
-                        source_type=source_type,
-                        page_number=page_number,
-                        chunk_index=i,
-                        text=clean_chunk_text(dc["raw_text"]),
-                        chapter=dc.get("chapter"),
-                        section=dc.get("section"),
-                        domain_hint=dc.get("domain_hint"),
-                        headings=dc.get("headings", []),
-                        content_type=dc.get("content_type"),
-                    )
-                )
-            chunks = _repair_broken_boundaries(chunks, effective_max)
-            chunks = _merge_structural_continuations(chunks, effective_max)
-            chunks = _merge_small_chunks(
-                chunks, min_chunk_tokens, effective_max,
+            chunks = _chunks_from_structured_parser(
+                docling_chunks,
+                document_id=document_id,
+                source_type=source_type,
+                effective_max=effective_max,
+                min_chunk_tokens=min_chunk_tokens,
             )
             return Document(
                 document_id=document_id,
                 source_path=path,
                 chunks=chunks,
+                parser_used="docling",
+                parser_fallback_chain=attempted,
             )
         logger.info("Docling produced no chunks, falling back to pypdf")
 
     # --- Fallback: pypdf + paragraph-aware chunking ---
+    attempted.append("pypdf")
     logger.info("Using pypdf + paragraph-aware chunking")
     try:
         reader = PdfReader(path)
@@ -664,7 +721,13 @@ def parse_document(
     full_text, page_char_offsets = join_pages_smart(page_texts)
 
     if not full_text.strip():
-        return Document(document_id=document_id, source_path=path, chunks=[])
+        return Document(
+            document_id=document_id,
+            source_path=path,
+            chunks=[],
+            parser_used="pypdf",
+            parser_fallback_chain=attempted,
+        )
 
     page_metadata: dict[int, Optional[PageMetadata]] = {}
     for page_number, text in page_texts:
@@ -690,4 +753,10 @@ def parse_document(
         chunks, min_chunk_tokens, effective_max,
     )
 
-    return Document(document_id=document_id, source_path=path, chunks=chunks)
+    return Document(
+        document_id=document_id,
+        source_path=path,
+        chunks=chunks,
+        parser_used="pypdf",
+        parser_fallback_chain=attempted,
+    )

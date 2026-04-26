@@ -88,6 +88,11 @@ body {
     color: var(--success);
 }
 
+.badge.mineru {
+    background: var(--accent-light);
+    color: var(--accent);
+}
+
 .badge.pypdf {
     background: var(--warning-light);
     color: var(--warning);

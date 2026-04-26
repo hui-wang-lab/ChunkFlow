@@ -83,11 +83,18 @@ class Document:
     document_id: str
     source_path: str
     chunks: list[Chunk] = field(default_factory=list)
+    parser_used: str | None = None
+    parser_fallback_chain: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "document_id": self.document_id,
             "source_path": self.source_path,
             "chunk_count": len(self.chunks),
             "chunks": [c.to_dict() for c in self.chunks],
         }
+        if self.parser_used is not None:
+            out["parser_used"] = self.parser_used
+        if self.parser_fallback_chain:
+            out["parser_fallback_chain"] = self.parser_fallback_chain
+        return out

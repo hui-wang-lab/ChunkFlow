@@ -19,12 +19,17 @@
 
     let selectedFile = null;
     let lastResult = null;
+    const parserLabels = {
+        mineru: "MinerU",
+        docling: "Docling",
+        pypdf: "PyPDF",
+    };
 
     // --- Init: fetch parser status ---
     fetch("/api/status")
         .then((r) => r.json())
         .then((data) => {
-            parserBadge.textContent = data.parser === "docling" ? "Docling" : "PyPDF";
+            parserBadge.textContent = parserLabels[data.parser] || data.parser || "offline";
             parserBadge.className = "badge " + data.parser;
         })
         .catch(() => {
@@ -122,7 +127,7 @@
     function renderResults(data) {
         results.hidden = false;
         $("#statChunks").textContent = data.chunk_count;
-        $("#statParser").textContent = data.parser_used === "docling" ? "Docling" : "PyPDF";
+        $("#statParser").textContent = parserLabels[data.parser_used] || data.parser_used || "Unknown";
         $("#statSize").textContent = formatSize(data.file_size_bytes);
 
         searchInput.value = "";
