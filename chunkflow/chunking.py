@@ -35,7 +35,7 @@ from chunkflow.pdf_parser import (
 
 logger = logging.getLogger("chunkflow.chunking")
 
-DEFAULT_PARSER_PRIORITY = ("mineru", "docling", "pypdf")
+DEFAULT_PARSER_PRIORITY = ("docling", "mineru", "pypdf")
 
 _PARAGRAPH_SEP_RE = re.compile(r"\n\s*\n")
 
@@ -143,6 +143,8 @@ def _ends_with_continuation_signal(chunk: Chunk) -> bool:
 
 
 def _should_merge_structural_continuation(first: Chunk, second: Chunk) -> bool:
+    if _content_type_name(first.content_type) == "table" or _content_type_name(second.content_type) == "table":
+        return False
     if second.page_number < first.page_number or second.page_number - first.page_number > 1:
         return False
     if first.chapter and second.chapter and first.chapter != second.chapter:
@@ -211,6 +213,9 @@ def _repair_broken_boundaries(
     for chunk in chunks:
         if merged:
             prev = merged[-1]
+            if _content_type_name(prev.content_type) == "table" or _content_type_name(chunk.content_type) == "table":
+                merged.append(chunk)
+                continue
             prev_stripped = prev.text.rstrip()
             curr_stripped = chunk.text.lstrip()
 
@@ -265,6 +270,10 @@ def _merge_small_chunks(
         if idx in skip_next:
             continue
 
+        if _content_type_name(chunk.content_type) == "table":
+            merged.append(chunk)
+            continue
+
         est = estimate_tokens(chunk.text)
         if est >= min_chunk_tokens:
             merged.append(chunk)
@@ -273,7 +282,7 @@ def _merge_small_chunks(
         combined_backward = False
         if merged:
             prev = merged[-1]
-            if _same_section(prev, chunk):
+            if _same_section(prev, chunk) and _content_type_name(prev.content_type) != "table":
                 combined_est = estimate_tokens(prev.text) + est
                 if combined_est <= hard_cap:
                     merged[-1] = _combine_chunks(prev, chunk)
@@ -283,7 +292,7 @@ def _merge_small_chunks(
             next_idx = idx + 1
             if next_idx < len(chunks) and next_idx not in skip_next:
                 nxt = chunks[next_idx]
-                if _same_section(chunk, nxt):
+                if _same_section(chunk, nxt) and _content_type_name(nxt.content_type) != "table":
                     combined_est = est + estimate_tokens(nxt.text)
                     if combined_est <= hard_cap:
                         merged.append(_combine_chunks(chunk, nxt))
@@ -573,7 +582,11 @@ def _sliding_window_chunks(
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def configured_parser_priority() -> list[str]:
+def configured_parser_priority(parser_priority: list[str] | None = None) -> list[str]:
+    if parser_priority is not None:
+        priority = [part.strip().lower() for part in parser_priority if part.strip()]
+        return [p for p in priority if p in DEFAULT_PARSER_PRIORITY] or list(DEFAULT_PARSER_PRIORITY)
+
     raw = os.getenv("CHUNKFLOW_PARSER_PRIORITY", ",".join(DEFAULT_PARSER_PRIORITY))
     priority = [part.strip().lower() for part in raw.split(",") if part.strip()]
     return [p for p in priority if p in DEFAULT_PARSER_PRIORITY] or list(DEFAULT_PARSER_PRIORITY)
@@ -619,6 +632,7 @@ def parse_document(
     chunk_size_tokens: int = 400,
     overlap_tokens: int = 100,
     min_chunk_tokens: int = 50,
+    parser_priority: list[str] | None = None,
 ) -> Document:
     """Parse a PDF file and return a Document with ordered Chunks.
 
@@ -642,62 +656,64 @@ def parse_document(
 
     effective_max = max(max_tokens, chunk_size_tokens)
 
-    parser_priority = configured_parser_priority()
+    parser_priority = configured_parser_priority(parser_priority)
     attempted: list[str] = []
 
-    # --- MinerU path ---
-    if "mineru" in parser_priority and is_mineru_available():
-        attempted.append("mineru")
-        logger.info("Using MinerU for high-fidelity parsing")
-        try:
-            mineru_chunks = parse_pdf_with_mineru(path, max_tokens=max_tokens)
-        except Exception as e:
-            logger.warning("MinerU parsing failed, falling back: %s", e)
-            mineru_chunks = []
+    for parser_name in parser_priority:
+        if parser_name == "docling" and is_docling_available():
+            attempted.append("docling")
+            logger.info("Using Docling for structure-aware parsing")
+            try:
+                docling_chunks = parse_pdf_with_docling(path, max_tokens=max_tokens)
+            except Exception as e:
+                logger.warning("Docling parsing failed, falling back: %s", e)
+                docling_chunks = []
 
-        if mineru_chunks:
-            chunks = _chunks_from_structured_parser(
-                mineru_chunks,
-                document_id=document_id,
-                source_type=source_type,
-                effective_max=effective_max,
-                min_chunk_tokens=min_chunk_tokens,
-            )
-            return Document(
-                document_id=document_id,
-                source_path=path,
-                chunks=chunks,
-                parser_used="mineru",
-                parser_fallback_chain=attempted,
-            )
-        logger.info("MinerU produced no chunks, falling back")
+            if docling_chunks:
+                chunks = _chunks_from_structured_parser(
+                    docling_chunks,
+                    document_id=document_id,
+                    source_type=source_type,
+                    effective_max=effective_max,
+                    min_chunk_tokens=min_chunk_tokens,
+                )
+                return Document(
+                    document_id=document_id,
+                    source_path=path,
+                    chunks=chunks,
+                    parser_used="docling",
+                    parser_fallback_chain=attempted,
+                )
+            logger.info("Docling produced no chunks, falling back")
 
-    # --- Docling path ---
-    if "docling" in parser_priority and is_docling_available():
-        attempted.append("docling")
-        logger.info("Using Docling for structure-aware parsing")
-        try:
-            docling_chunks = parse_pdf_with_docling(path, max_tokens=max_tokens)
-        except Exception as e:
-            logger.warning("Docling parsing failed, falling back to pypdf: %s", e)
-            docling_chunks = []
+        elif parser_name == "mineru" and is_mineru_available():
+            attempted.append("mineru")
+            logger.info("Using MinerU for high-fidelity parsing")
+            try:
+                mineru_chunks = parse_pdf_with_mineru(path, max_tokens=max_tokens)
+            except Exception as e:
+                logger.warning("MinerU parsing failed, falling back: %s", e)
+                mineru_chunks = []
 
-        if docling_chunks:
-            chunks = _chunks_from_structured_parser(
-                docling_chunks,
-                document_id=document_id,
-                source_type=source_type,
-                effective_max=effective_max,
-                min_chunk_tokens=min_chunk_tokens,
-            )
-            return Document(
-                document_id=document_id,
-                source_path=path,
-                chunks=chunks,
-                parser_used="docling",
-                parser_fallback_chain=attempted,
-            )
-        logger.info("Docling produced no chunks, falling back to pypdf")
+            if mineru_chunks:
+                chunks = _chunks_from_structured_parser(
+                    mineru_chunks,
+                    document_id=document_id,
+                    source_type=source_type,
+                    effective_max=effective_max,
+                    min_chunk_tokens=min_chunk_tokens,
+                )
+                return Document(
+                    document_id=document_id,
+                    source_path=path,
+                    chunks=chunks,
+                    parser_used="mineru",
+                    parser_fallback_chain=attempted,
+                )
+            logger.info("MinerU produced no chunks, falling back")
+
+        elif parser_name == "pypdf":
+            break
 
     # --- Fallback: pypdf + paragraph-aware chunking ---
     attempted.append("pypdf")

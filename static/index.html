@@ -35,6 +35,15 @@
                 <!-- Parameters -->
                 <div class="params-row">
                     <div class="param-group">
+                        <label for="parserMode">Parser</label>
+                        <select id="parserMode">
+                            <option value="auto" selected>Auto (Docling first)</option>
+                            <option value="docling">Docling</option>
+                            <option value="mineru">MinerU tables</option>
+                            <option value="pypdf">PyPDF</option>
+                        </select>
+                    </div>
+                    <div class="param-group">
                         <label for="maxTokens">Max Tokens (Docling)</label>
                         <input type="number" id="maxTokens" value="400" min="50" max="2000" step="50">
                     </div>

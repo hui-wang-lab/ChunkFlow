@@ -1,6 +1,10 @@
 import unittest
 
-from chunkflow.chunking import _merge_structural_continuations
+from chunkflow.chunking import (
+    _merge_small_chunks,
+    _merge_structural_continuations,
+    _repair_broken_boundaries,
+)
 from chunkflow.pdf_parser import clean_chunk_text
 from chunkflow.schema import Chunk
 
@@ -27,6 +31,48 @@ def make_chunk(
 
 
 class ChunkingRegressionTests(unittest.TestCase):
+    def test_merge_small_chunks_keeps_table_chunks_separate(self) -> None:
+        heading = make_chunk(
+            idx=0,
+            page=1,
+            section=None,
+            content_type="text",
+            text="新增功能统计",
+        )
+        table = make_chunk(
+            idx=1,
+            page=1,
+            section=None,
+            content_type="table",
+            text="| 序号 | 终端 |\n| --- | --- |\n| 1 | 教学端 |",
+        )
+
+        merged = _merge_small_chunks([heading, table], min_chunk_tokens=50, max_tokens=400)
+
+        self.assertEqual(len(merged), 2)
+        self.assertEqual(merged[1].content_type, "table")
+
+    def test_repair_broken_boundaries_keeps_table_chunks_separate(self) -> None:
+        heading = make_chunk(
+            idx=0,
+            page=1,
+            section=None,
+            content_type="text",
+            text="新增功能统计",
+        )
+        table = make_chunk(
+            idx=1,
+            page=1,
+            section=None,
+            content_type="table",
+            text="| 序号 | 终端 |\n| --- | --- |\n| 1 | 教学端 |",
+        )
+
+        repaired = _repair_broken_boundaries([heading, table], max_tokens=400)
+
+        self.assertEqual(len(repaired), 2)
+        self.assertEqual(repaired[1].content_type, "table")
+
     def test_clean_chunk_text_removes_page_footer_numeric_residue(self) -> None:
         raw = "①本合同实际交纳的保险费×给付系数；\n20251 第 1 页"
         self.assertEqual(clean_chunk_text(raw), "①本合同实际交纳的保险费×给付系数；")

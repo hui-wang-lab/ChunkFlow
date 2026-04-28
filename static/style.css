@@ -166,7 +166,8 @@ body {
     letter-spacing: 0.5px;
 }
 
-.param-group input {
+.param-group input,
+.param-group select {
     width: 140px;
     padding: 8px 12px;
     border: 1px solid var(--border);
@@ -177,7 +178,12 @@ body {
     transition: border-color 0.15s;
 }
 
-.param-group input:focus {
+.param-group select {
+    width: 180px;
+}
+
+.param-group input:focus,
+.param-group select:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-light);
@@ -516,7 +522,8 @@ body {
         align-items: stretch;
     }
 
-    .param-group input {
+    .param-group input,
+    .param-group select {
         width: 100%;
     }
 

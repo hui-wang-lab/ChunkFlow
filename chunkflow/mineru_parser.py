@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import tempfile
 import time
 import uuid
@@ -136,13 +137,57 @@ def _poll_batch_result(
 
 def _download_file(url: str, target: Path) -> None:
     _ensure_requests()
-    with requests.get(url, stream=True, timeout=120) as response:
-        if response.status_code // 100 != 2:
-            raise RuntimeError(f"MinerU result download failed: HTTP {response.status_code}")
-        with target.open("wb") as f:
-            for chunk in response.iter_content(chunk_size=1024 * 256):
-                if chunk:
-                    f.write(chunk)
+    errors: list[str] = []
+    for attempt in range(3):
+        try:
+            with requests.get(url, stream=True, timeout=120) as response:
+                if response.status_code // 100 != 2:
+                    raise RuntimeError(f"HTTP {response.status_code}")
+                with target.open("wb") as f:
+                    for chunk in response.iter_content(chunk_size=1024 * 256):
+                        if chunk:
+                            f.write(chunk)
+            return
+        except Exception as exc:
+            errors.append(str(exc))
+            if target.exists():
+                target.unlink()
+            time.sleep(1 + attempt)
+
+    if _download_file_with_wsl_curl(url, target):
+        return
+
+    raise RuntimeError(f"MinerU result download failed: {'; '.join(errors)}")
+
+
+def _download_file_with_wsl_curl(url: str, target: Path) -> bool:
+    """Fallback for Windows TLS/CDN issues observed with MinerU result URLs."""
+    try:
+        wsl_target = subprocess.check_output(
+            ["wsl", "-e", "wslpath", "-a", str(target)],
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        ).strip()
+        result = subprocess.run(
+            [
+                "wsl",
+                "-e",
+                "bash",
+                "-lc",
+                'curl -L --fail --retry 3 --retry-delay 2 -o "$1" "$2"',
+                "_",
+                wsl_target,
+                url,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=180,
+            check=False,
+        )
+    except Exception:
+        return False
+    return result.returncode == 0 and target.exists() and target.stat().st_size > 0
 
 
 def _read_mineru_zip(archive_path: Path) -> tuple[str, list[dict[str, Any]]]:

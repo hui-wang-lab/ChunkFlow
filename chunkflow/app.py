@@ -18,6 +18,13 @@ from chunkflow.mineru_parser import is_mineru_available
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("chunkflow.app")
 
+PARSER_MODES: dict[str, list[str] | None] = {
+    "auto": None,
+    "docling": ["docling", "pypdf"],
+    "mineru": ["mineru", "pypdf"],
+    "pypdf": ["pypdf"],
+}
+
 app = FastAPI(title="ChunkFlow", description="Document parsing and chunking service")
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
@@ -37,10 +44,16 @@ async def index():
 async def status():
     priority = configured_parser_priority()
     parser = "pypdf"
-    if "mineru" in priority and is_mineru_available():
-        parser = "mineru"
-    elif "docling" in priority and is_docling_available():
-        parser = "docling"
+    for candidate in priority:
+        if candidate == "docling" and is_docling_available():
+            parser = "docling"
+            break
+        if candidate == "mineru" and is_mineru_available():
+            parser = "mineru"
+            break
+        if candidate == "pypdf":
+            parser = "pypdf"
+            break
     return {
         "service": "ChunkFlow",
         "mineru_available": is_mineru_available(),
@@ -53,6 +66,7 @@ async def status():
 @app.post("/api/parse")
 async def parse_file(
     file: UploadFile = File(...),
+    parser: str = Query("auto", pattern="^(auto|docling|mineru|pypdf)$"),
     max_tokens: int = Query(400, ge=50, le=2000),
     chunk_size_tokens: int = Query(400, ge=50, le=2000),
     overlap_tokens: int = Query(100, ge=0, le=500),
@@ -79,11 +93,13 @@ async def parse_file(
             chunk_size_tokens=chunk_size_tokens,
             overlap_tokens=overlap_tokens,
             min_chunk_tokens=min_chunk_tokens,
+            parser_priority=PARSER_MODES[parser],
         )
 
         result = document.to_dict()
         result["filename"] = file.filename
         result["file_size_bytes"] = len(content)
+        result["parser_requested"] = parser
 
         return JSONResponse(content=result)
 

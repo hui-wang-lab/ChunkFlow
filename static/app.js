@@ -94,8 +94,10 @@
         const chunkSize = $("#chunkSize").value;
         const overlap = $("#overlap").value;
         const minChunkTokens = $("#minChunkTokens").value;
+        const parserMode = $("#parserMode").value;
 
         const params = new URLSearchParams({
+            parser: parserMode,
             max_tokens: maxTokens,
             chunk_size_tokens: chunkSize,
             overlap_tokens: overlap,

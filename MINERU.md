@@ -11,7 +11,7 @@ pip install -r requirements.txt
 export MINERU_API_TOKEN="your-token"
 
 # Optional parser and MinerU settings.
-export CHUNKFLOW_PARSER_PRIORITY="mineru,docling,pypdf"
+export CHUNKFLOW_PARSER_PRIORITY="docling,mineru,pypdf"
 export MINERU_MODEL_VERSION="vlm"
 export MINERU_ENABLE_TABLE="true"
 export MINERU_ENABLE_FORMULA="true"
@@ -21,14 +21,14 @@ export MINERU_POLL_TIMEOUT_SECONDS="300"
 export MINERU_POLL_INTERVAL_SECONDS="3"
 ```
 
-When `MINERU_API_TOKEN` is not configured or MinerU fails, parsing automatically falls back to Docling and then pypdf.
+When `MINERU_API_TOKEN` is not configured or MinerU fails, parsing automatically falls back to pypdf. In auto mode, Docling is preferred for structure-aware terms/contract documents, while MinerU can be selected for table-heavy PDFs.
 
 ## Parser Order
 
-Default order:
+Default auto order:
 
 ```text
-MinerU precise API -> Docling -> pypdf
+Docling -> MinerU precise API -> pypdf
 ```
 
 MinerU output is normalized into the same chunk shape used by the Docling path. Table chunks are marked with `content_type="table"` and table HTML is converted to Markdown tables where possible.
