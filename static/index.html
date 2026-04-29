@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChunkFlow - 文档解析与切片</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=quality-monitor-1">
 </head>
 <body>
     <div class="app">
@@ -17,7 +17,6 @@
         </header>
 
         <main class="main">
-            <!-- Upload Section -->
             <section class="upload-section">
                 <div class="upload-card" id="dropZone">
                     <div class="upload-icon">
@@ -27,12 +26,11 @@
                             <line x1="12" y1="3" x2="12" y2="15"/>
                         </svg>
                     </div>
-                    <p class="upload-text">拖拽 PDF 文件到此处，或点击选择文件</p>
-                    <p class="upload-hint">支持 PDF 格式</p>
-                    <input type="file" id="fileInput" accept=".pdf" hidden>
+                    <p class="upload-text">拖拽文件到此处，或点击选择文件</p>
+                    <p class="upload-hint">支持 PDF / CSV / TSV / XLSX / TXT / Markdown</p>
+                    <input type="file" id="fileInput" accept=".pdf,.csv,.tsv,.xlsx,.xlsm,.txt,.md,.markdown" hidden>
                 </div>
 
-                <!-- Parameters -->
                 <div class="params-row">
                     <div class="param-group">
                         <label for="parserMode">Parser</label>
@@ -41,14 +39,16 @@
                             <option value="docling">Docling</option>
                             <option value="mineru">MinerU tables</option>
                             <option value="pypdf">PyPDF</option>
+                            <option value="table_file">Table file</option>
+                            <option value="text_file">Text file</option>
                         </select>
                     </div>
                     <div class="param-group">
-                        <label for="maxTokens">Max Tokens (Docling)</label>
+                        <label for="maxTokens">Max Tokens</label>
                         <input type="number" id="maxTokens" value="400" min="50" max="2000" step="50">
                     </div>
                     <div class="param-group">
-                        <label for="chunkSize">Chunk Size (pypdf)</label>
+                        <label for="chunkSize">Chunk Size</label>
                         <input type="number" id="chunkSize" value="400" min="50" max="2000" step="50">
                     </div>
                     <div class="param-group">
@@ -57,7 +57,7 @@
                     </div>
                     <div class="param-group">
                         <label for="minChunkTokens">最小块阈值</label>
-                        <input type="number" id="minChunkTokens" value="50" min="0" max="500" step="10" title="低于此 token 数的小块将被合并到相邻同 section 块中，设为 0 禁用">
+                        <input type="number" id="minChunkTokens" value="50" min="0" max="500" step="10" title="低于该 token 数的小块会合并到相邻同 section 块中，设为 0 禁用">
                     </div>
                     <button id="parseBtn" class="btn-primary" disabled>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -67,7 +67,6 @@
                     </button>
                 </div>
 
-                <!-- Selected file info -->
                 <div id="fileInfo" class="file-info" hidden>
                     <span id="fileName" class="file-name"></span>
                     <span id="fileSize" class="file-size"></span>
@@ -75,16 +74,13 @@
                 </div>
             </section>
 
-            <!-- Loading -->
             <div id="loading" class="loading" hidden>
                 <div class="spinner"></div>
                 <p>正在解析文档，请稍候...</p>
             </div>
 
-            <!-- Error -->
             <div id="errorMsg" class="error-msg" hidden></div>
 
-            <!-- Results Section -->
             <section id="results" class="results-section" hidden>
                 <div class="results-header">
                     <div class="results-summary">
@@ -110,11 +106,22 @@
                     </div>
                 </div>
 
-                <div id="chunkList" class="chunk-list"></div>
+                <div class="view-tabs" role="tablist" aria-label="结果视图">
+                    <button id="chunksTab" class="view-tab active" type="button">切片结果</button>
+                    <button id="monitorTab" class="view-tab" type="button">质量监控</button>
+                </div>
+
+                <div id="qualityPanel" class="quality-panel" hidden></div>
+                <div id="chunksView">
+                    <div id="chunkList" class="chunk-list"></div>
+                </div>
+                <div id="monitorView" class="monitor-view" hidden>
+                    <div id="monitorPanel"></div>
+                </div>
             </section>
         </main>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=quality-monitor-1"></script>
 </body>
 </html>

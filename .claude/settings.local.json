@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest test/ -x -q)",
+      "Bash(python -m py_compile chunkflow/postprocess/boundary_repair.py chunkflow/postprocess/small_chunk_merge.py chunkflow/ir/validators.py chunkflow/core/pipeline.py)",
+      "Bash(python -c \"import inspect; from chunkflow.core.pipeline import parse_to_chunk_package; print\\(inspect.signature\\(parse_to_chunk_package\\)\\)\")",
+      "Bash(python -c \"from chunkflow.core.pipeline import PipelineConfig; help\\(PipelineConfig\\)\")",
+      "Bash(python -c \"from chunkflow.chunkers.generic_structured import GenericStructuredChunker; print\\('OK'\\)\")",
+      "Bash(python -m pytest test/test_phase1_ir_chunking.py test/test_phase3_template_chunkers.py -q)",
+      "Bash(python -u -c ' *)"
+    ]
+  }
+}

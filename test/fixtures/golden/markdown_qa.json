@@ -1,0 +1,69 @@
+{
+  "children": [
+    {
+      "chunk_type": "qa_pair",
+      "heading_path": [
+        "FAQ"
+      ],
+      "metadata_keys": [
+        "answer",
+        "block_types",
+        "question",
+        "template_rule"
+      ],
+      "page_span": [
+        1,
+        1
+      ],
+      "source_blocks": 4,
+      "text_preview": "FAQ Q: What is ChunkFlow? A: A lightweight document parsing and chunking service. FAQ Q: What files are supported? A: PD",
+      "token_count": 38
+    }
+  ],
+  "chunker_used": "qa",
+  "counts": {
+    "blocks": 5,
+    "children": 1,
+    "parents": 1,
+    "warnings": 1
+  },
+  "document_type": "qa",
+  "metrics": {
+    "block_type_counts": {
+      "heading": 1,
+      "paragraph": 4
+    },
+    "boundary_repair_count": 0,
+    "child_type_counts": {
+      "qa_pair": 1
+    },
+    "chunks_without_source_block_count": 0,
+    "heading_level_counts": {
+      "1": 5
+    },
+    "inferred_heading_count": 0,
+    "layout_noise_removed_count": 0,
+    "media_context_strategy_counts": {},
+    "orphan_child_count": 0,
+    "over_max_token_child_count": 0,
+    "parent_child_edge_count": 1,
+    "split_overlong_child_count": 0
+  },
+  "parents": [
+    {
+      "child_count": 1,
+      "page_span": [
+        1,
+        1
+      ],
+      "title": "FAQ"
+    }
+  ],
+  "parse_report": {
+    "block_count": 5,
+    "figure_count": 0,
+    "page_count": 1,
+    "table_count": 0
+  },
+  "parser_used": "text_file"
+}

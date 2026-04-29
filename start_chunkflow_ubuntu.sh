@@ -5,7 +5,6 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PORT="${PORT:-8900}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
-export MINERU_API_TOKEN="eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.eyJqdGkiOiIxMzMwMDQwNiIsInJvbCI6IlJPTEVfUkVHSVNURVIiLCJpc3MiOiJPcGVuWExhYiIsImlhdCI6MTc3NzIwNzM1NywiY2xpZW50SWQiOiJsa3pkeDU3bnZ5MjJqa3BxOXgydyIsInBob25lIjoiIiwib3BlbklkIjpudWxsLCJ1dWlkIjoiNzBmMWVlZGMtMDQyOC00N2FkLTgxYmQtNjllNzlmYTIxOTk1IiwiZW1haWwiOiIiLCJleHAiOjE3ODQ5ODMzNTd9.SmPdON8Sd4Wy6TnFCYkMFVU1ZfOlnOJJcbhumqQdrYYnYnbvalkDxshAr4RClS7ZdAF7M_kGvWxwg6SFZDARKQ"
 export CHUNKFLOW_PARSER_PRIORITY="docling,mineru,pypdf"
 
 echo "Stopping existing ChunkFlow service on port ${PORT} ..."

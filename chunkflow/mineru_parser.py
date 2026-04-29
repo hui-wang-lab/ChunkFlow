@@ -46,6 +46,26 @@ def parse_pdf_with_mineru(
     Returns dictionaries compatible with ``parse_pdf_with_docling``:
     raw_text, page_number, chapter, section, domain_hint, headings, content_type.
     """
+    full_md, content_list = parse_pdf_with_mineru_artifacts(
+        pdf_path,
+        timeout_seconds=timeout_seconds,
+        poll_interval_seconds=poll_interval_seconds,
+    )
+    chunks = _content_list_to_chunks(content_list, max_tokens=max_tokens)
+    if not chunks and full_md.strip():
+        chunks = _markdown_to_chunks(full_md, max_tokens=max_tokens)
+
+    logger.info("MinerU parsed %s: %d chunks", pdf_path, len(chunks))
+    return chunks
+
+
+def parse_pdf_with_mineru_artifacts(
+    pdf_path: str | Path,
+    *,
+    timeout_seconds: Optional[int] = None,
+    poll_interval_seconds: Optional[float] = None,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Parse a local PDF through MinerU and return raw markdown + content list."""
     token = os.getenv("MINERU_API_TOKEN")
     if not token:
         raise RuntimeError("MINERU_API_TOKEN is not configured")
@@ -70,12 +90,7 @@ def parse_pdf_with_mineru(
         _download_file(zip_url, archive_path)
         full_md, content_list = _read_mineru_zip(archive_path)
 
-    chunks = _content_list_to_chunks(content_list, max_tokens=max_tokens)
-    if not chunks and full_md.strip():
-        chunks = _markdown_to_chunks(full_md, max_tokens=max_tokens)
-
-    logger.info("MinerU parsed %s: %d chunks", pdf_path, len(chunks))
-    return chunks
+    return full_md, content_list
 
 
 def _create_upload_task(token: str, file_name: str) -> tuple[str, str]:
